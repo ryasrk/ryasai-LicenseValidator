@@ -40,8 +40,9 @@ const _PRODUCT_PREFIXES: Record<string, string> = {
   peopledet: 'PEOPLEDET',
 }
 
-export function generateLicenseKey(product: string): string {
-  const prefix = _PRODUCT_PREFIXES[product] ?? product.toUpperCase().replaceAll(' ', '').slice(0, 6)
+export function generateLicenseKey(product?: string): string {
+  const p = product?.toLowerCase().trim()
+  const prefix = (p && _PRODUCT_PREFIXES[p]) ? _PRODUCT_PREFIXES[p] : 'RYASAI'
   return `${prefix}-${keyPart()}-${keyPart()}-${keyPart()}`
 }
 
@@ -66,7 +67,8 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   .post(
     '/licenses',
     ({ body, status }) => {
-      const licenseKey = generateLicenseKey(body.product)
+      const product = (body.product?.trim()) || 'ryasai'
+      const licenseKey = generateLicenseKey(product)
 
       let expiresAt: string | null = null
       if (body.expires_at) {
@@ -86,7 +88,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
         )
         .run(
-          id, licenseKey, body.customer_name, body.customer_email, plan, body.product, maxMachines,
+          id, licenseKey, body.customer_name, body.customer_email, plan, product, maxMachines,
           expiresAt, now, now, body.notes ?? null,
         )
 
@@ -96,7 +98,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         customer_name: body.customer_name,
         customer_email: body.customer_email,
         plan,
-        product: body.product,
+        product,
         max_machines: maxMachines,
         is_active: true,
         expires_at: body.expires_at ?? null,
@@ -109,7 +111,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         customer_name: t.String(),
         customer_email: t.String(),
         plan: t.Optional(t.String()), // starter, pro, enterprise
-        product: t.String(), // required — specify which app this license is for
+        product: t.Optional(t.String()), // optional — defaults to ryasai
         max_machines: t.Optional(t.Integer()),
         expires_at: t.Optional(t.Nullable(t.String())), // ISO format, null = lifetime
         notes: t.Optional(t.Nullable(t.String())),

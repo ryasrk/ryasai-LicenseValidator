@@ -65,7 +65,7 @@ function logValidation(licenseId: string | null, licenseKey: string, machineId: 
 const validateRequest = t.Object({
   license_key: t.String(),
   machine_id: t.String(),
-  product: t.String(), // required — app must identify itself
+  product: t.Optional(t.String()), // optional — product check eliminated
   version: t.Optional(t.String()),
   hostname: t.Optional(t.String()),
   os_info: t.Optional(t.String()),
@@ -109,12 +109,6 @@ export const licenseRoutes = new Elysia({ prefix: '/license' })
       if (!license.is_active) {
         log(license.id, 'inactive')
         return resp({ valid: false, message: 'License has been deactivated.' })
-      }
-
-      // Check product match
-      if (license.product !== body.product) {
-        log(license.id, 'wrong_product')
-        return resp({ valid: false, message: 'License not valid for this product.' })
       }
 
       // Check expiry

@@ -34,7 +34,6 @@ export const internalRoutes = new Elysia({ prefix: '/internal' })
     '/licenses/generate',
     ({ body, status }) => {
       const errors: string[] = []
-      if (!body.product?.trim()) errors.push("'product' is required.")
       if (!body.slug?.trim()) errors.push("'slug' is required.")
       if (body.months === undefined || body.months === null) {
         errors.push("'months' is required.")
@@ -46,14 +45,14 @@ export const internalRoutes = new Elysia({ prefix: '/internal' })
       }
 
       const slug = body.slug!.trim()
-      const product = body.product!.trim()
+      const product = (body.product?.trim()) || 'ryasai'
       const months = body.months!
       const db = getDb()
 
       // Check if active license already exists for this org slug
       const licenses = db
-        .prepare('SELECT * FROM licenses WHERE product = ? AND slug = ? AND is_active = 1 ORDER BY created_at DESC')
-        .all(product, slug) as unknown as LicenseRow[]
+        .prepare('SELECT * FROM licenses WHERE slug = ? AND is_active = 1 ORDER BY created_at DESC')
+        .all(slug) as unknown as LicenseRow[]
 
       const now = new Date()
       const existing = licenses.find(
