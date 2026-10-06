@@ -1,0 +1,70 @@
+/* Theme tokens (RGB channels), consumed by tailwind.config.ts */
+/* .light / .dark can also be put on any element to theme just its subtree (the login layers do) */
+:root, .light {
+  --brand-50: 238 242 255;
+  --brand-100: 224 229 255;
+  --brand-200: 199 205 254;
+  --surface-0: 250 251 252;
+  --surface-1: 255 255 255;
+  --surface-2: 244 245 247;
+  --surface-3: 235 237 240;
+  --ink: 26 26 46;
+  --ink-muted: 74 74 104;
+  --ink-subtle: 138 143 152;
+  --ink-tertiary: 176 180 188;
+  --hairline: 228 231 235;
+  --hairline-strong: 208 212 219;
+}
+.light { color-scheme: light; }
+.dark {
+  color-scheme: dark;
+  --brand-50: 27 29 58;
+  --brand-100: 36 39 77;
+  --brand-200: 50 54 106;
+  --surface-0: 11 12 20;
+  --surface-1: 19 20 31;
+  --surface-2: 26 28 41;
+  --surface-3: 35 37 53;
+  --ink: 236 237 245;
+  --ink-muted: 180 183 201;
+  --ink-subtle: 131 136 160;
+  --ink-tertiary: 93 97 120;
+  --hairline: 38 40 57;
+  --hairline-strong: 52 55 75;
+}
+
+/* Custom styles come before Tailwind, matching the cascade order of the original CDN-based page */
+/* --font-inter is provided by next/font in app/layout.tsx */
+body { font-family: var(--font-inter), 'Inter', sans-serif; }
+.fade-in { animation: fadeIn 0.3s ease-out; }
+/* Whole-screen entrance (login, admin) after the initial load */
+.screen-fade-in { animation: fadeIn 0.7s ease-out both; }
+.fade-in-up { animation: fadeInUp 0.4s ease-out; }
+.slide-in-right { animation: slideInRight 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+.pulse-dot { animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { animation: spin 0.8s linear infinite; }
+.glass { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); }
+.input-focus { transition: all 0.2s ease; }
+.input-focus:focus { box-shadow: 0 0 0 3px rgba(94,106,210,0.15); }
+.btn-primary { transition: all 0.2s ease; }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(94,106,210,0.3); }
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+.card-hover { transition: all 0.2s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+.table-row-hover { transition: background-color 0.15s ease; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+.dark ::-webkit-scrollbar-thumb { background: #34374b; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #4a4e68; }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
