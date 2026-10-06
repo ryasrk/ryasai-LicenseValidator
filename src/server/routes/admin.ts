@@ -31,6 +31,20 @@ function count(sql: string, ...params: string[]): number {
 
 const keyPart = () => randomBytes(4).toString('hex').toUpperCase()
 
+const _PRODUCT_PREFIXES: Record<string, string> = {
+  visia: 'VISIA',
+  chatbot: 'CHATBOT',
+  'ryasai-chatbot': 'CHATBOT',
+  'ryasai-visia': 'RYASAI',
+  d2t: 'D2T',
+  peopledet: 'PEOPLEDET',
+}
+
+export function generateLicenseKey(product: string): string {
+  const prefix = _PRODUCT_PREFIXES[product] ?? product.toUpperCase().replaceAll(' ', '').slice(0, 6)
+  return `${prefix}-${keyPart()}-${keyPart()}-${keyPart()}`
+}
+
 export const adminRoutes = new Elysia({ prefix: '/admin' })
   // Require valid admin JWT
   .onBeforeHandle(async ({ headers, set, status }) => {
@@ -52,9 +66,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   .post(
     '/licenses',
     ({ body, status }) => {
-      // Generate unique license key: PREFIX-XXXX-XXXX-XXXX (prefix = product name uppercase)
-      const prefix = body.product.toUpperCase().replaceAll(' ', '').slice(0, 6)
-      const licenseKey = `${prefix}-${keyPart()}-${keyPart()}-${keyPart()}`
+      const licenseKey = generateLicenseKey(body.product)
 
       let expiresAt: string | null = null
       if (body.expires_at) {

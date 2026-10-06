@@ -56,6 +56,10 @@ export function rateLimit(request: Request): Response | undefined {
   const clientIp = getClientIp(request) ?? 'unknown'
   const path = new URL(request.url).pathname
 
+  // /internal/* endpoints authenticate with a shared secret and are
+  // called server-to-server; skip IP-based rate limiting for them.
+  if (path.startsWith('/internal/')) return undefined
+
   // Determine rate limit for this path
   let [maxRequests, window] = DEFAULT_LIMIT
   for (const [prefix, limit] of Object.entries(LIMITS)) {

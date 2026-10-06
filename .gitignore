@@ -20,3 +20,8 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Python leftovers
+__pycache__/
+venv/
+*.pyc

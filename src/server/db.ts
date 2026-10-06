@@ -12,6 +12,7 @@ export interface LicenseRow {
   customer_email: string
   plan: string // starter, pro, enterprise
   product: string // app identifier e.g. "d2t", "peopledet"
+  slug?: string | null
   max_machines: number
   is_active: number
   expires_at: string | null // null = lifetime
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS licenses (
     customer_email VARCHAR(200) NOT NULL,
     plan VARCHAR(20) NOT NULL,
     product VARCHAR(50) NOT NULL,
+    slug VARCHAR(100),
     max_machines INTEGER,
     is_active BOOLEAN,
     expires_at DATETIME,
@@ -68,6 +70,7 @@ CREATE TABLE IF NOT EXISTS licenses (
     PRIMARY KEY (id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ix_licenses_license_key ON licenses (license_key);
+CREATE INDEX IF NOT EXISTS ix_licenses_slug ON licenses (slug);
 
 CREATE TABLE IF NOT EXISTS machine_activations (
     id VARCHAR(36) NOT NULL,
@@ -116,6 +119,12 @@ export function getDb(): DatabaseSync {
     mkdirSync(dirname(settings.DATABASE_PATH), { recursive: true })
     const db = new DatabaseSync(settings.DATABASE_PATH)
     db.exec(SCHEMA)
+    // Lightweight column migration for existing SQLite databases
+    const columns = db.prepare('PRAGMA table_info(licenses)').all() as Array<{ name: string }>
+    if (!columns.some((c) => c.name === 'slug')) {
+      db.exec('ALTER TABLE licenses ADD COLUMN slug VARCHAR(100)')
+      db.exec('CREATE INDEX IF NOT EXISTS ix_licenses_slug ON licenses (slug)')
+    }
     globalStore.__licenseDb = db
     console.info('License Manager: database initialized')
     if (!db.prepare('SELECT id FROM admin_users LIMIT 1').get()) {

@@ -6,6 +6,7 @@ import { settings } from './config'
 import { rateLimit } from './middleware'
 import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
+import { internalRoutes } from './routes/internal'
 import { licenseRoutes } from './routes/license'
 
 const ALLOWED_ORIGINS = [
@@ -39,6 +40,8 @@ export const app = new Elysia()
 
   // ─── Routes ────────────────────────────────────────────────────────────────
   .get('/health', () => ({ status: 'healthy', service: 'license-manager', version: settings.APP_VERSION }))
+  // Internal: server-to-server (shared-secret auth — deliberately NOT admin JWT)
+  .use(internalRoutes)
   .group('/api/v1', (api) =>
     api
       // Public: license validation (called by client apps)
