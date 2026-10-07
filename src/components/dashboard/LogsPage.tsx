@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import { admin, unwrap, type ValidationLog } from '@/lib/api'
+import { admin, loadMeta, unwrap, type ValidationLog } from '@/lib/api'
+import { dayBoundary, formatDateTime } from '@/lib/dates'
 import { useReveal } from '@/lib/motion'
-import { Icons, Spinner } from './ui'
+import { Icons, Select, Spinner, Switch, type SelectOption } from './ui'
 
 const resultStyles: Record<string, { bg: string; dot: string }> = {
   valid: { bg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/25', dot: 'bg-emerald-500' },
@@ -15,20 +16,72 @@ const resultStyles: Record<string, { bg: string; dot: string }> = {
   wrong_product: { bg: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/25', dot: 'bg-orange-500' },
 }
 
-// Validation Logs Page — auto-refresh, better result badges
+const PAGE_SIZE = 50
+const ALL_RESULTS = 'all'
+
+const filterInputClass = 'px-3 py-2 border border-hairline rounded-lg text-sm bg-surface-1 text-ink input-focus focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none placeholder:text-ink-tertiary'
+
+// Validation Logs Page — search, result and date filters, auto-refresh
 export function LogsPage() {
   const [logs, setLogs] = useState<ValidationLog[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [page, setPage] = useState(1)
 
-  const fetchLogs = useCallback(() => {
-    return unwrap(admin['validation-logs'].get({ query: { limit: 50 } }))
-      .then(setLogs)
-      .catch(() => setLogs([]))
-      .finally(() => setLoading(false))
+  const [search, setSearch] = useState('')
+  // The search the list was last asked for; follows the input after a short pause in typing
+  const [query, setQuery] = useState('')
+  const [result, setResult] = useState(ALL_RESULTS)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [resultOptions, setResultOptions] = useState<SelectOption[]>([{ value: ALL_RESULTS, label: 'All results' }])
+
+  useEffect(() => {
+    loadMeta()
+      .then(meta => setResultOptions([
+        { value: ALL_RESULTS, label: 'All results' },
+        ...meta.validation_results.map(r => ({ value: r.code, label: r.name })),
+      ]))
+      .catch(() => {})
   }, [])
 
-  useEffect(() => { fetchLogs() }, [])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(search.trim())
+      setPage(1)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // The server filters and pages, so the total covers every match. The dates are the viewer's local days.
+  const fetchLogs = useCallback(() => {
+    let stale = false
+    unwrap(admin['validation-logs'].get({
+      query: {
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        ...(query ? { search: query } : {}),
+        ...(result !== ALL_RESULTS ? { result } : {}),
+        ...(from ? { from: dayBoundary(from, 'start') } : {}),
+        ...(to ? { to: dayBoundary(to, 'end') } : {}),
+      },
+    }))
+      .then(d => {
+        if (stale) return
+        setLogs(d.data)
+        setTotal(d.total)
+      })
+      .catch(() => {
+        if (stale) return
+        setLogs([])
+        setTotal(0)
+      })
+      .finally(() => { if (!stale) setLoading(false) })
+    return () => { stale = true }
+  }, [page, query, result, from, to])
+
+  useEffect(() => fetchLogs(), [fetchLogs])
 
   // Auto-refresh every 10s
   useEffect(() => {
@@ -37,8 +90,15 @@ export function LogsPage() {
     return () => clearInterval(interval)
   }, [autoRefresh, fetchLogs])
 
-  const validCount = logs.filter(l => l.result === 'valid').length
-  const failCount = logs.filter(l => l.result !== 'valid').length
+  const filtered = !!query || result !== ALL_RESULTS || !!from || !!to
+  const clearFilters = () => {
+    setSearch('')
+    setQuery('')
+    setResult(ALL_RESULTS)
+    setFrom('')
+    setTo('')
+    setPage(1)
+  }
 
   const revealRef = useReveal<HTMLDivElement>([logs])
 
@@ -47,22 +107,45 @@ export function LogsPage() {
       <div data-reveal className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h2 className="text-xl font-bold text-ink tracking-tight">Validation Logs</h2>
-          <p className="text-sm text-ink-subtle mt-0.5">
-            {logs.length} entries
-            {logs.length > 0 && <span className="ml-2 text-ink-tertiary">({validCount} valid, {failCount} failed)</span>}
-          </p>
+          <p className="text-sm text-ink-subtle mt-0.5">{total} {filtered ? 'matching' : 'total'} entries</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-xs text-ink-subtle cursor-pointer select-none">
-            <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)}
-              className="rounded border-hairline text-brand-500 focus:ring-brand-500/20" />
             Auto-refresh
-            {autoRefresh && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span>}
+            <Switch checked={autoRefresh} onChange={setAutoRefresh} />
           </label>
           <button onClick={fetchLogs} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-2 rounded-md border border-hairline transition-colors">
             <Icons.Refresh /> Refresh
           </button>
         </div>
+      </div>
+
+      {/* Search & filters */}
+      {/* Above the table, so the open result list is not covered by it */}
+      <div data-reveal className="relative z-10 flex flex-wrap items-end gap-3 mb-4">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle"><Icons.Search /></span>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search license key, IP, or machine ID..." aria-label="Search logs"
+            className={`w-full pl-9 pr-4 ${filterInputClass}`} />
+        </div>
+        <Select ariaLabel="Result filter" value={result} onChange={value => { setResult(value); setPage(1) }}
+          options={resultOptions} className={`w-40 text-ink-muted ${filterInputClass}`} />
+        <label className="block">
+          <span className="block text-[10px] font-medium text-ink-subtle uppercase tracking-wider mb-1">From</span>
+          <input type="date" value={from} max={to || undefined} onChange={e => { setFrom(e.target.value); setPage(1) }}
+            className={filterInputClass} />
+        </label>
+        <label className="block">
+          <span className="block text-[10px] font-medium text-ink-subtle uppercase tracking-wider mb-1">To</span>
+          <input type="date" value={to} min={from || undefined} onChange={e => { setTo(e.target.value); setPage(1) }}
+            className={filterInputClass} />
+        </label>
+        {filtered && (
+          <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-ink-muted hover:bg-surface-2 rounded-lg transition-colors">
+            <Icons.X /> Clear
+          </button>
+        )}
       </div>
 
       <div data-reveal className="bg-surface-1 rounded-xl border border-hairline overflow-x-auto">
@@ -77,13 +160,13 @@ export function LogsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline">
-            {logs.map((log, i) => {
+            {logs.map(log => {
               const style = resultStyles[log.result] || resultStyles.inactive
               return (
                 <tr key={log.id} data-reveal className="table-row-hover hover:bg-surface-0">
-                  <td className="px-5 py-3 text-xs text-ink-muted whitespace-nowrap">{log.timestamp ? new Date(log.timestamp).toLocaleString() : '-'}</td>
-                  <td className="px-5 py-3"><code className="text-xs font-mono text-ink-muted bg-surface-2 px-1.5 py-0.5 rounded">{log.license_key?.substring(0, 16)}...</code></td>
-                  <td className="px-5 py-3"><code className="text-xs font-mono text-ink-subtle">{log.machine_id?.substring(0, 14)}...</code></td>
+                  <td className="px-5 py-3 text-xs text-ink-muted whitespace-nowrap">{formatDateTime(log.timestamp)}</td>
+                  <td className="px-5 py-3"><code title={log.license_key} className="text-xs font-mono text-ink-muted bg-surface-2 px-1.5 py-0.5 rounded">{log.license_key.length > 16 ? `${log.license_key.substring(0, 16)}...` : log.license_key}</code></td>
+                  <td className="px-5 py-3"><code title={log.machine_id} className="text-xs font-mono text-ink-subtle">{log.machine_id.length > 20 ? `${log.machine_id.substring(0, 20)}...` : log.machine_id}</code></td>
                   <td className="px-5 py-3">
                     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold border ${style.bg}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`}></span>
@@ -106,11 +189,24 @@ export function LogsPage() {
             <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center mx-auto mb-3 text-ink-subtle">
               <Icons.Activity />
             </div>
-            <p className="text-sm text-ink-subtle">No validation logs yet</p>
-            <p className="text-xs text-ink-tertiary mt-1">Logs appear when clients validate licenses</p>
+            <p className="text-sm text-ink-subtle">{filtered ? 'No matching logs' : 'No validation logs yet'}</p>
+            <p className="text-xs text-ink-tertiary mt-1">{filtered ? 'Try different filters' : 'Logs appear when clients validate licenses'}</p>
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {total > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-ink-subtle">Showing {((page - 1) * PAGE_SIZE) + 1}-{Math.min(page * PAGE_SIZE, total)} of {total}</p>
+          <div className="flex gap-1.5">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="px-3 py-1.5 border border-hairline rounded-md text-xs font-medium text-ink-muted disabled:opacity-40 hover:bg-surface-2 transition-colors">Prev</button>
+            <button onClick={() => setPage(p => p + 1)} disabled={page * PAGE_SIZE >= total}
+              className="px-3 py-1.5 border border-hairline rounded-md text-xs font-medium text-ink-muted disabled:opacity-40 hover:bg-surface-2 transition-colors">Next</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -287,7 +287,9 @@ function EndpointCard({ endpoint }: { endpoint: DocEndpoint }) {
 
           <div>
             <SectionTitle>Try it out</SectionTitle>
-            <TryIt endpoint={endpoint} />
+            {endpoint.noTryIt
+              ? <p className="text-xs text-ink-subtle">{endpoint.noTryIt}</p>
+              : <TryIt endpoint={endpoint} />}
           </div>
         </div>
       )}

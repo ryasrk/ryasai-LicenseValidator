@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 
 import { AnimatedNumber, useEnter } from '@/lib/motion'
 import { useTheme, type Theme } from '@/lib/theme'
@@ -46,6 +46,7 @@ export const Icons = {
   X: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M6 18L18 6M6 6l12 12" /></svg>,
   Refresh: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
   Search: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+  Users: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H2v-2a4 4 0 015-3.87M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a5 5 0 00-5 5v1h10v-1a5 5 0 00-5-5z" /></svg>,
   Settings: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
 }
 
@@ -69,6 +70,137 @@ export function ThemeButton({ theme, onClick, className = '' }: {
       ) : (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
       )}
+    </button>
+  )
+}
+
+export interface SelectOption {
+  value: string
+  label: string
+}
+
+// Dropdown — replaces the native <select> so the list matches the theme
+export function Select({ value, onChange, options, placeholder = 'Select...', ariaLabel, invalid = false, className = '' }: {
+  value: string
+  onChange: (value: string) => void
+  options: SelectOption[]
+  placeholder?: string
+  ariaLabel: string
+  invalid?: boolean
+  className?: string // styles the trigger, like an input
+}) {
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const listRef = useEnter<HTMLUListElement>(open, { y: -4 })
+  const listId = useId()
+  const selected = options.find(option => option.value === value)
+
+  // Close on a press anywhere outside
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [open])
+
+  const openList = () => {
+    setActiveIndex(Math.max(0, options.findIndex(option => option.value === value)))
+    setOpen(true)
+  }
+
+  const choose = (option: SelectOption) => {
+    onChange(option.value)
+    setOpen(false)
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        openList()
+      }
+      return
+    }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setActiveIndex(i => Math.min(i + 1, options.length - 1))
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setActiveIndex(i => Math.max(i - 1, 0))
+        break
+      case 'Home':
+        e.preventDefault()
+        setActiveIndex(0)
+        break
+      case 'End':
+        e.preventDefault()
+        setActiveIndex(options.length - 1)
+        break
+      case 'Enter':
+        // Also stops the click the browser would fire, which would reopen the list
+        e.preventDefault()
+        if (options[activeIndex]) choose(options[activeIndex])
+        break
+      case 'Escape':
+        e.preventDefault()
+        setOpen(false)
+        break
+      case 'Tab':
+        setOpen(false)
+        break
+    }
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button type="button" role="combobox" aria-label={ariaLabel} aria-haspopup="listbox" aria-expanded={open}
+        aria-controls={listId} aria-activedescendant={open ? `${listId}-${activeIndex}` : undefined} aria-invalid={invalid || undefined}
+        onClick={() => (open ? setOpen(false) : openList())} onKeyDown={onKeyDown}
+        className={`flex items-center justify-between gap-2 text-left ${className} ${invalid ? '!border-red-400 dark:!border-red-500/60' : ''}`}>
+        <span className={`truncate ${selected ? '' : 'text-ink-tertiary'}`}>{selected ? selected.label : placeholder}</span>
+        <svg className={`w-4 h-4 flex-shrink-0 text-ink-subtle transition-transform duration-150 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <ul ref={listRef} id={listId} role="listbox" aria-label={ariaLabel}
+          className="absolute left-0 top-full z-30 mt-1 min-w-full w-max max-w-[calc(100vw-2rem)] max-h-60 overflow-auto rounded-lg border border-hairline bg-surface-1 py-1 shadow-lg">
+          {options.map((option, i) => {
+            const isSelected = option.value === value
+            return (
+              <li key={option.value} id={`${listId}-${i}`} role="option" aria-selected={isSelected}
+                onPointerEnter={() => setActiveIndex(i)} onClick={() => choose(option)}
+                className={`flex items-center justify-between gap-3 px-3 py-1.5 text-sm cursor-pointer select-none ${
+                  i === activeIndex ? 'bg-surface-2' : ''
+                } ${isSelected ? 'text-brand-600 dark:text-brand-300 font-medium' : 'text-ink'}`}>
+                <span className="truncate">{option.label}</span>
+                {isSelected && <Icons.Check />}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// On / off switch: red on the left when off, green on the right when on
+export function Switch({ checked, onChange, ariaLabel }: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  ariaLabel?: string
+}) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={ariaLabel} onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+        checked ? 'bg-emerald-500' : 'bg-red-500'
+      }`}>
+      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+        checked ? 'translate-x-[18px]' : 'translate-x-0.5'
+      }`}></span>
     </button>
   )
 }
@@ -137,15 +269,32 @@ export function PlanBadge({ plan }: { plan: string }) {
     starter: 'bg-surface-3 text-ink-muted',
     pro: 'bg-brand-50 text-brand-600 dark:text-brand-300',
     enterprise: 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+    flat: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400',
   }
   return <span className={`px-2 py-0.5 rounded text-[11px] font-semibold tracking-wide ${colors[plan] || colors.starter}`}>{plan?.toUpperCase()}</span>
 }
 
-// Status Badge — dot + label
-export function StatusBadge({ active }: { active: boolean }) {
-  return active
-    ? <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></span><span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Active</span></span>
-    : <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-red-400"></span><span className="text-xs font-medium text-red-500">Revoked</span></span>
+const statusTones = {
+  green: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+  red: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400',
+  amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  gray: 'bg-surface-3 text-ink-muted',
+}
+
+// Status Badge — pill style, same shape as the plan badge
+export function StatusBadge({ active, label, tone }: {
+  active: boolean
+  label?: string // defaults to Active / Revoked
+  tone?: keyof typeof statusTones // defaults to green when active, red otherwise
+}) {
+  const color = statusTones[tone ?? (active ? 'green' : 'red')]
+  return <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold tracking-wide ${color}`}>{(label ?? (active ? 'Active' : 'Revoked')).toUpperCase()}</span>
+}
+
+// License status as shown everywhere: an expired license is neither active nor revoked
+export function LicenseStatusBadge({ license }: { license: { is_active: boolean; is_expired: boolean } }) {
+  if (license.is_active && license.is_expired) return <StatusBadge active={false} label="Expired" tone="amber" />
+  return <StatusBadge active={license.is_active} />
 }
 
 // Modal — glass overlay, refined

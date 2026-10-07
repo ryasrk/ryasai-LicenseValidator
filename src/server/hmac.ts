@@ -11,7 +11,7 @@
  * Signature = HMAC-SHA256(secret, `${timestamp}:${method}:${path}:${body}`)
  * Replay window: 5 minutes
  *
- * Not applied to any route yet, as in the Python server it was ported from.
+ * Required on POST /api/v1/license/renew (see RENEWAL_TRIGGER_FROM_CHAT.md).
  */
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
@@ -29,13 +29,15 @@ export type HmacResult = { ok: true; signed: boolean } | { ok: false; detail: st
 
 /**
  * Verify HMAC signature on incoming request.
- * Unsigned requests are allowed (backward compatibility) and reported as signed: false.
+ * Unsigned requests are reported as signed: false, and rejected when `required`.
  */
-export function verifyHmacSignature(request: Request, body: string): HmacResult {
+export function verifyHmacSignature(request: Request, body: string, required = false): HmacResult {
   const signature = request.headers.get('x-signature')
   const timestamp = request.headers.get('x-timestamp')
 
-  if (!signature || !timestamp) return { ok: true, signed: false }
+  if (!signature || !timestamp) {
+    return required ? { ok: false, detail: 'Request signature required' } : { ok: true, signed: false }
+  }
 
   // Check replay window
   if (!/^[+-]?\d+$/.test(timestamp.trim())) return { ok: false, detail: 'Invalid timestamp' }

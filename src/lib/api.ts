@@ -38,6 +38,29 @@ export async function unwrap<R extends { data: unknown; error: { status: unknown
   return data as NonNullable<R['data']>
 }
 
+/** The message of an error thrown by unwrap: the server's "detail" when it sent one. */
+export function errorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err)
+  try {
+    const parsed: unknown = JSON.parse(message)
+    if (parsed && typeof parsed === 'object' && 'detail' in parsed && typeof parsed.detail === 'string') return parsed.detail
+  } catch {
+    // Not JSON: the message is already readable
+  }
+  return message
+}
+
+let metaRequest: Promise<Meta> | undefined
+
+/** Master data (plans, statuses, validation results). Fetched once per page load. */
+export function loadMeta(): Promise<Meta> {
+  metaRequest ??= unwrap(admin.meta.get()).catch((error) => {
+    metaRequest = undefined
+    throw error
+  })
+  return metaRequest
+}
+
 /** The server's {"detail": "..."} error message, if it sent one. */
 export function errorDetail(error: { value: unknown }, fallback: string): string {
   const value = error.value
@@ -51,4 +74,6 @@ export type LoginResult = Treaty.Data<typeof admin.auth.login.post>
 export type Stats = Treaty.Data<typeof admin.stats.get>
 export type License = Treaty.Data<typeof admin.licenses.get>['data'][number]
 export type LicenseDetail = Treaty.Data<ReturnType<typeof admin.licenses>['get']>
-export type ValidationLog = Treaty.Data<(typeof admin)['validation-logs']['get']>[number]
+export type ValidationLog = Treaty.Data<(typeof admin)['validation-logs']['get']>['data'][number]
+export type Meta = Treaty.Data<typeof admin.meta.get>
+export type AdminUser = Treaty.Data<typeof admin.users.get>[number]

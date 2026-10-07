@@ -23,11 +23,15 @@ const navItems = [
   { href: '/', label: 'Dashboard', short: 'Dashboard', icon: <Icons.Dashboard /> },
   { href: '/licenses', label: 'Licenses', short: 'Licenses', icon: <Icons.Key /> },
   { href: '/logs', label: 'Validation Logs', short: 'Logs', icon: <Icons.Activity /> },
+  { href: '/admins', label: 'Admins', short: 'Admins', icon: <Icons.Users /> },
   { href: '/docs', label: 'API Docs', short: 'Docs', icon: <Icons.Code /> },
 ]
 
 function AdminPanel({ user, onLogout, children }: { user: User | null; onLogout: () => void; children: ReactNode }) {
   const pathname = usePathname()
+  // When the page on screen was loaded: each page fetches its data as it opens
+  const [updatedAt, setUpdatedAt] = useState('')
+  useEffect(() => { setUpdatedAt(new Date().toLocaleTimeString()) }, [pathname])
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null)
   const navRef = useRef<HTMLElement>(null)
   const highlightRef = useRef<HTMLDivElement>(null)
@@ -126,6 +130,7 @@ function AdminPanel({ user, onLogout, children }: { user: User | null; onLogout:
               </button>
             </div>
           </div>
+          <p className="mt-2.5 text-[11px] text-ink-subtle">Last updated: {updatedAt}</p>
         </div>
       </aside>
 
@@ -137,7 +142,7 @@ function AdminPanel({ user, onLogout, children }: { user: User | null; onLogout:
       </main>
 
       {/* Tab bar (phones) */}
-      <nav className="md:hidden grid grid-cols-4 bg-surface-1 border-t border-hairline pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden grid grid-cols-5 bg-surface-1 border-t border-hairline pb-[env(safe-area-inset-bottom)]">
         {navItems.map(item => {
           const active = pathname === item.href
           return (

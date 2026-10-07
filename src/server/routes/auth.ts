@@ -2,8 +2,9 @@
 import { randomUUID } from 'node:crypto'
 import { Elysia, t } from 'elysia'
 
-import { createAccessToken, decodeToken, hashPassword, isSetupRequired, verifyPassword } from '../auth'
-import { getDb, type AdminUserRow } from '../db'
+import { authenticate, createAccessToken, findAdminByEmail, hashPassword, isSetupRequired, verifyPassword } from '../auth'
+import { settings } from '../config'
+import { getDb } from '../db'
 import { nowDb } from '../time'
 
 export const authRoutes = new Elysia({ prefix: '/admin/auth' })
@@ -25,6 +26,11 @@ export const authRoutes = new Elysia({ prefix: '/admin/auth' })
       if (!isSetupRequired()) {
         return status(403, { detail: 'Setup already completed. Use /login instead.' })
       }
+      // Only the configured address may claim a fresh install
+      const email = body.email.trim()
+      if (email.toLowerCase() !== settings.ADMIN_EMAIL.trim().toLowerCase()) {
+        return status(403, { detail: 'Setup is only allowed for the email configured as ADMIN_EMAIL.' })
+      }
       if (body.password !== body.password_confirm) {
         return status(400, { detail: 'Passwords do not match.' })
       }
@@ -36,17 +42,17 @@ export const authRoutes = new Elysia({ prefix: '/admin/auth' })
       }
       getDb()
         .prepare('INSERT INTO admin_users (id, email, password_hash, is_active, created_at) VALUES (?, ?, ?, 1, ?)')
-        .run(randomUUID(), body.email, passwordHash, nowDb())
+        .run(randomUUID(), email, passwordHash, nowDb())
 
       // Auto-login after setup
-      const token = await createAccessToken({ sub: body.email })
-      return { access_token: token, token_type: 'bearer', email: body.email }
+      const token = await createAccessToken({ email, token_version: 0 })
+      return { access_token: token, token_type: 'bearer', email }
     },
     {
       body: t.Object({
-        email: t.String(),
-        password: t.String({ minLength: 8 }),
-        password_confirm: t.String(),
+        email: t.String({ maxLength: 200 }),
+        password: t.String({ minLength: 8, maxLength: 200 }),
+        password_confirm: t.String({ maxLength: 200 }),
       }),
     },
   )
@@ -60,26 +66,23 @@ export const authRoutes = new Elysia({ prefix: '/admin/auth' })
         return status(428, { detail: 'Initial setup required. Use /setup endpoint first.' })
       }
 
-      const admin = getDb()
-        .prepare('SELECT * FROM admin_users WHERE email = ? AND is_active = 1')
-        .get(body.email) as AdminUserRow | undefined
-
-      if (!admin || !(await verifyPassword(body.password, admin.password_hash))) {
+      const admin = findAdminByEmail(body.email)
+      if (!admin || !admin.is_active || !(await verifyPassword(body.password, admin.password_hash))) {
         return status(401, { detail: 'Invalid email or password' })
       }
 
-      const token = await createAccessToken({ sub: admin.email })
+      const token = await createAccessToken(admin)
       return { access_token: token, token_type: 'bearer', email: admin.email }
     },
-    { body: t.Object({ email: t.String(), password: t.String() }) },
+    { body: t.Object({ email: t.String({ maxLength: 200 }), password: t.String({ maxLength: 200 }) }) },
   )
 
   /** Verify if a token is still valid. */
   .post(
     '/verify',
     async ({ query }) => {
-      const payload = await decodeToken(query.token)
-      return { valid: payload !== null, email: payload?.sub ?? null }
+      const admin = await authenticate(query.token)
+      return { valid: admin !== null, email: admin?.email ?? null }
     },
     { query: t.Object({ token: t.String() }) },
   )

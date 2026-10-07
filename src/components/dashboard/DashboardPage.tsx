@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { admin, unwrap, type License, type Stats } from '@/lib/api'
 import { useReveal } from '@/lib/motion'
-import { Icons, PlanBadge, StatCard, StatusBadge } from './ui'
+import { Icons, LicenseStatusBadge, PlanBadge, StatCard } from './ui'
 
 // Dashboard Page
 export function DashboardPage() {
@@ -31,9 +31,6 @@ export function DashboardPage() {
         <div>
           <h2 className="text-xl font-bold text-ink tracking-tight">Dashboard</h2>
           <p className="text-sm text-ink-subtle mt-0.5">License system overview</p>
-        </div>
-        <div className="text-xs text-ink-subtle bg-surface-2 px-3 py-1.5 rounded-full border border-hairline">
-          Last updated: {new Date().toLocaleTimeString()}
         </div>
       </div>
 
@@ -81,7 +78,7 @@ export function DashboardPage() {
               <div className="flex items-center gap-3">
                 {lic.product && <span className="text-[10px] font-mono bg-gray-100 dark:bg-surface-3 text-ink-muted px-1.5 py-0.5 rounded">{lic.product}</span>}
                 <PlanBadge plan={lic.plan} />
-                <StatusBadge active={lic.is_active} />
+                <LicenseStatusBadge license={lic} />
               </div>
             </div>
           ))}

@@ -51,7 +51,7 @@ export const internalRoutes = new Elysia({ prefix: '/internal' })
 
       // Check if active license already exists for this org slug
       const licenses = db
-        .prepare('SELECT * FROM licenses WHERE slug = ? AND is_active = 1 ORDER BY created_at DESC')
+        .prepare("SELECT * FROM licenses WHERE slug = ? AND status_code = 'active' ORDER BY created_at DESC")
         .all(slug) as unknown as LicenseRow[]
 
       const now = new Date()
@@ -86,14 +86,15 @@ export const internalRoutes = new Elysia({ prefix: '/internal' })
 
       db.prepare(
         `INSERT INTO licenses
-           (id, license_key, customer_name, customer_email, plan, product, slug, max_machines, is_active, expires_at, created_at, updated_at, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, ?)`,
+           (id, license_key, customer_name, customer_email, plan_code, status_code, product, slug, max_machines, expires_at, created_at, updated_at, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       ).run(
         id,
         licenseKey,
         slug,
         `${slug}@internal.ryasai`,
         'flat',
+        'active',
         product,
         slug,
         expiresAt,
