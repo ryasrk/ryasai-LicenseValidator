@@ -326,7 +326,8 @@ export function DocsPage() {
           <SectionTitle>Errors</SectionTitle>
           <p className="text-xs text-ink-muted leading-relaxed">
             Errors return JSON as <code className="font-mono">{'{"detail": "..."}'}</code>. A body or query that fails
-            validation returns 422, an unknown route 404.
+            validation returns 422, an unknown route 404. A request body must be sent as
+            {' '}<code className="font-mono">application/json</code>; anything else returns 415.
           </p>
         </div>
         <div data-reveal className="bg-surface-1 rounded-xl border border-hairline p-4 sm:p-5">

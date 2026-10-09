@@ -16,16 +16,32 @@ const ALLOWED_ORIGINS = [
   ...settings.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
 ]
 
+/**
+ * A request with a body must declare it as JSON. An HTML form on another site can only send
+ * urlencoded, multipart or text/plain bodies, so this keeps cross-site form posts out.
+ */
+function requireJsonBody(request: Request): Response | undefined {
+  const hasBody = Number(request.headers.get('content-length')) > 0 || request.headers.has('transfer-encoding')
+  if (!hasBody || /^application\/json\s*(;|$)/i.test(request.headers.get('content-type') ?? '')) return
+  return Response.json({ detail: 'Content-Type must be application/json' }, { status: 415 })
+}
+
 export const app = new Elysia()
   // ─── Middleware ────────────────────────────────────────────────────────────
   .use(
     cors({
       origin: ALLOWED_ORIGINS,
-      credentials: true,
+      // Authentication is a Bearer token sent by script, never a cookie, so browsers
+      // have no credentials to attach
+      credentials: false,
       methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+      // Named explicitly: the default echoes the request's own header names back
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Signature', 'X-Timestamp'],
+      exposeHeaders: ['Retry-After'],
+      maxAge: 600,
     }),
   )
-  .onRequest(({ request }) => rateLimit(request))
+  .onRequest(({ request }) => rateLimit(request) ?? requireJsonBody(request))
   // Errors use the same {"detail": ...} shape the FastAPI server returned
   .onError(({ code, error, status }) => {
     if (code === 'VALIDATION') {
